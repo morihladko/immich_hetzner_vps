@@ -1,0 +1,8 @@
+---
+# SSH settings
+ssh_port: 22
+
+# Fail2ban settings
+fail2ban_bantime: "1h"
+fail2ban_findtime: "10m"
+fail2ban_maxretry: 3

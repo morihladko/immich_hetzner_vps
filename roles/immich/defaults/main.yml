@@ -24,7 +24,7 @@ storagebox_mount_point: "/mnt/storagebox"
 storagebox_subdir: "immich"
 
 # Network settings
-immich_domain: "IMMICH_PUBLIC_URL"
+immich_domain: "YOUR_IMMICH_DOMAIN"
 immich_port: 2283
 immich_host: "0.0.0.0"
 
@@ -43,4 +43,4 @@ ml_cache_dir: "{{ immich_base_dir }}/ml-cache"
 immich_hwaccel: false
 
 # Timezone
-immich_timezone: "Europe/Berlin"
+immich_timezone: "Europe/Bratislava"

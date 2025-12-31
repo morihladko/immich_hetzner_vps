@@ -4,188 +4,22 @@
   become: true
   become_method: sudo
   vars:
-    username: peter
-
-  tasks:
-    - name: Update apt cache and upgrade packages
-      apt:
-        update_cache: yes
-        upgrade: dist
-      tags: [update]
-
-    - name: Create user '{{ username }}' with sudo access
-      user:
-        name: "{{ username }}"
-        shell: /bin/bash
-        groups: sudo
-        append: yes
-        create_home: yes
-      tags: [install, user]
-
-    - name: Copy authorized_keys from root to {{ username }}
-      shell: |
-        mkdir -p /home/{{ username }}/.ssh
-        cp /root/.ssh/authorized_keys /home/{{ username }}/.ssh/
-        chown -R {{ username }}:{{ username }} /home/{{ username }}/.ssh
-        chmod 700 /home/{{ username }}/.ssh
-        chmod 600 /home/{{ username }}/.ssh/authorized_keys
-      args:
-        creates: "/home/{{ username }}/.ssh/authorized_keys"
-      tags: [install, user, ssh]
-
-    - name: Install essential packages
-      apt:
-        name:
-          - vim
-          - tmux
-          - byobu
-          - btop
-          - fail2ban
-          - unattended-upgrades
-          - ufw
-        state: present
-      tags: [install]
-
-    - name: Install Docker prerequisites
-      apt:
-        name:
-          - ca-certificates
-          - curl
-          - gnupg
-        state: present
-      tags: [install, docker]
-
-    - name: Add Docker GPG key
-      shell: |
-        install -m 0755 -d /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        chmod a+r /etc/apt/keyrings/docker.asc
-      args:
-        creates: /etc/apt/keyrings/docker.asc
-      tags: [install, docker]
-
-    - name: Add Docker repository
-      shell: |
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
-      args:
-        creates: /etc/apt/sources.list.d/docker.list
-      tags: [install, docker]
-
-    - name: Install Docker packages
-      apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
-        state: present
-        update_cache: yes
-      tags: [install, docker]
-
-    - name: Add user to docker group
-      user:
-        name: "{{ username }}"
-        groups: docker
-        append: yes
-      tags: [install, docker]
-
-    - name: Configure Docker daemon (logging limits)
-      copy:
-        dest: /etc/docker/daemon.json
-        content: |
-          {
-            "log-driver": "json-file",
-            "log-opts": {
-              "max-size": "10m",
-              "max-file": "3"
-            }
-          }
-      notify: Restart Docker
-      tags: [docker]
-
-    - name: Enable and start Docker service
-      systemd:
-        name: docker
-        enabled: yes
-        state: started
-      tags: [docker]
-
-    - name: Enable Unattended Upgrades
-      copy:
-        dest: /etc/apt/apt.conf.d/20auto-upgrades
-        content: |
-          APT::Periodic::Update-Package-Lists "1";
-          APT::Periodic::Unattended-Upgrade "1";
-      tags: [install]
-
-    - name: Configure UFW - Allow SSH (Port 22)
-      ufw:
-        rule: allow
-        port: "22"
-        proto: tcp
-      tags: [firewall]
-
-    - name: Enable UFW with default deny
-      ufw:
-        state: enabled
-        policy: deny
-      tags: [firewall]
-
-    - name: Harden SSH Configuration
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: "{{ item.regexp }}"
-        line: "{{ item.line }}"
-        state: present
-      loop:
-        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
-        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
-        - { regexp: '^#?AllowUsers', line: 'AllowUsers {{ username }}' }
-      notify: Restart SSH
-      tags: [ssh]
-
-    - name: Configure Fail2Ban for SSH
-      copy:
-        dest: /etc/fail2ban/jail.local
-        content: |
-          [DEFAULT]
-          bantime  = 1h
-          findtime = 10m
-          maxretry = 3
-
-          [sshd]
-          enabled = true
-          port    = 22
-          logpath = %(sshd_log)s
-      notify: Restart Fail2Ban
-      tags: [ssh]
+    username: user
 
   roles:
+    - role: common
+      tags: [common]
+
+    - role: docker
+      tags: [docker]
+
+    - role: security
+      tags: [security]
+
     - role: immich
       tags: [immich]
       vars:
-        # Hetzner Storage Box - set these in host_vars or vault
         storagebox_url: "{{ vault_storagebox_url | default('') }}"
         storagebox_user: "{{ vault_storagebox_user | default('') }}"
         storagebox_password: "{{ vault_storagebox_password | default('') }}"
         postgres_password: "{{ vault_postgres_password | default('postgres') }}"
-
-  handlers:
-    - name: Restart SSH
-      service:
-        name: ssh
-        state: restarted
-      tags: [ssh]
-
-    - name: Restart Fail2Ban
-      service:
-        name: fail2ban
-        state: restarted
-      tags: [ssh]
-
-    - name: Restart Docker
-      service:
-        name: docker
-        state: restarted
-      tags: [docker]

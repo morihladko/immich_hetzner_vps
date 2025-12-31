@@ -1,0 +1,11 @@
+---
+# User settings
+username: user
+
+# Essential packages
+common_packages:
+  - vim
+  - tmux
+  - byobu
+  - btop
+  - unattended-upgrades

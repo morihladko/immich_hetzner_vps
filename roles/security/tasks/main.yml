@@ -1,0 +1,50 @@
+---
+- name: Install security packages
+  apt:
+    name:
+      - fail2ban
+      - ufw
+    state: present
+  tags: [install]
+
+- name: Configure UFW - Allow SSH
+  ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+  tags: [firewall]
+
+- name: Enable UFW with default deny
+  ufw:
+    state: enabled
+    policy: deny
+  tags: [firewall]
+
+- name: Harden SSH Configuration
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?AllowUsers', line: 'AllowUsers {{ username }}' }
+  notify: Restart SSH
+  tags: [ssh]
+
+- name: Configure Fail2Ban for SSH
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime  = {{ fail2ban_bantime }}
+      findtime = {{ fail2ban_findtime }}
+      maxretry = {{ fail2ban_maxretry }}
+
+      [sshd]
+      enabled = true
+      port    = {{ ssh_port }}
+      logpath = %(sshd_log)s
+  notify: Restart Fail2Ban
+  tags: [ssh]

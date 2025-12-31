@@ -1,0 +1,40 @@
+---
+- name: Update apt cache and upgrade packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+  tags: [update]
+
+- name: Create user '{{ username }}' with sudo access
+  user:
+    name: "{{ username }}"
+    shell: /bin/bash
+    groups: sudo
+    append: yes
+    create_home: yes
+  tags: [install, user]
+
+- name: Copy authorized_keys from root to {{ username }}
+  shell: |
+    mkdir -p /home/{{ username }}/.ssh
+    cp /root/.ssh/authorized_keys /home/{{ username }}/.ssh/
+    chown -R {{ username }}:{{ username }} /home/{{ username }}/.ssh
+    chmod 700 /home/{{ username }}/.ssh
+    chmod 600 /home/{{ username }}/.ssh/authorized_keys
+  args:
+    creates: "/home/{{ username }}/.ssh/authorized_keys"
+  tags: [install, user]
+
+- name: Install essential packages
+  apt:
+    name: "{{ common_packages }}"
+    state: present
+  tags: [install]
+
+- name: Enable Unattended Upgrades
+  copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+  tags: [install]
