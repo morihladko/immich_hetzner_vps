@@ -1,0 +1,9 @@
+{{ immich_domain }} {
+    # Automatic HTTP->HTTPS redirect is handled by Caddy by default
+
+    # Reverse Proxy to Immich
+    reverse_proxy immich-server:2283
+
+    # Upload size limits handled by immich, but good to be explicit here if needed
+    # Caddy has no default request body limit
+}

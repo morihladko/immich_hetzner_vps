@@ -1,0 +1,46 @@
+---
+# Immich version
+immich_version: "release"
+
+# Directory paths
+immich_base_dir: "/opt/immich"
+immich_db_dir: "{{ immich_base_dir }}/postgres"
+
+# Local directories (fast SSD for latency-sensitive data)
+immich_upload_buffer_dir: "{{ immich_base_dir }}/upload-buffer"
+immich_profile_dir: "{{ immich_base_dir }}/profile"
+
+# Storagebox directories (large storage)
+immich_library_dir: "{{ storagebox_mount_point }}/{{ storagebox_subdir }}/library"
+immich_encoded_video_dir: "{{ storagebox_mount_point }}/{{ storagebox_subdir }}/encoded-video"
+immich_backups_dir: "{{ storagebox_mount_point }}/{{ storagebox_subdir }}/backups"
+immich_thumbs_dir: "{{ storagebox_mount_point }}/{{ storagebox_subdir }}/thumbs"
+
+# Hetzner Storage Box settings (set via vault)
+storagebox_url: ""  # e.g., //u123456.your-storagebox.de/backup
+storagebox_user: ""
+storagebox_password: ""
+storagebox_mount_point: "/mnt/storagebox"
+storagebox_subdir: "immich"
+
+# Network settings
+immich_domain: "IMMICH_PUBLIC_URL"
+immich_port: 2283
+immich_host: "0.0.0.0"
+
+# Database settings
+postgres_user: "postgres"
+postgres_password: "postgres"  # Change in production!
+postgres_db: "immich"
+
+# Redis settings (local)
+redis_host: "redis"
+
+# Machine learning settings (optimized for 4CPU/8GB)
+ml_cache_dir: "{{ immich_base_dir }}/ml-cache"
+
+# Hardware acceleration (none for basic VPS)
+immich_hwaccel: false
+
+# Timezone
+immich_timezone: "Europe/Berlin"

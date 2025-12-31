@@ -1,0 +1,89 @@
+services:
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:{{ immich_version }}
+    volumes:
+      # Storagebox
+      - {{ immich_library_dir }}:/usr/src/app/upload/library
+      - {{ immich_encoded_video_dir }}:/usr/src/app/upload/encoded-video
+      - {{ immich_backups_dir }}:/usr/src/app/upload/backups
+      - {{ immich_thumbs_dir }}:/usr/src/app/upload/thumbs
+      # Local SSD
+      - {{ immich_upload_buffer_dir }}:/usr/src/app/upload/upload
+      - {{ immich_profile_dir }}:/usr/src/app/upload/profile
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - database
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  caddy:
+    container_name: immich_caddy
+    image: caddy:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - immich-server
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:{{ immich_version }}
+    volumes:
+      - {{ ml_cache_dir }}:/cache
+    env_file:
+      - .env
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/redis:6.2-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  database:
+    container_name: immich_postgres
+    image: docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      - {{ immich_db_dir }}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${DB_DATABASE_NAME} -U $${DB_USERNAME}"]
+      interval: 5m
+      start_period: 5m
+    command: ["postgres", "-c", "shared_preload_libraries=vectors.so", "-c", "search_path=\"$$user\", public, vectors", "-c", "logging_collector=on", "-c", "max_wal_size=2GB", "-c", "shared_buffers=512MB", "-c", "wal_compression=on"]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+volumes:
+  redis-data:
+  caddy_data:
+  caddy_config:

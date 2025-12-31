@@ -1,0 +1,7 @@
+# Ansible Vault - encrypt this file with: ansible-vault encrypt group_vars/all/vault.yml
+# Hetzner Storage Box credentials
+vault_storagebox_url: "//u123456.your-storagebox.de/backup"
+vault_storagebox_user: "u123456"
+vault_storagebox_password: "CHANGE_ME"
+# Database password
+vault_postgres_password: "CHANGE_ME"

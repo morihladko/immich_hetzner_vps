@@ -1,0 +1,148 @@
+---
+- name: Install CIFS utilities for Storage Box
+  apt:
+    name:
+      - cifs-utils
+    state: present
+  tags: [immich-storage]
+
+- name: Create local Immich directories (SSD)
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0755"
+  loop:
+    - "{{ immich_base_dir }}"
+    - "{{ immich_db_dir }}"
+    - "{{ immich_upload_buffer_dir }}"
+    - "{{ immich_profile_dir }}"
+    - "{{ ml_cache_dir }}"
+  tags: [immich-config]
+
+- name: Create Storage Box mount point
+  file:
+    path: "{{ storagebox_mount_point }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [immich-storage]
+
+- name: Create Storage Box credentials file
+  copy:
+    dest: /etc/storagebox-credentials
+    content: |
+      username={{ storagebox_user }}
+      password={{ storagebox_password }}
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  tags: [immich-storage]
+
+- name: Get user info
+  getent:
+    database: passwd
+    key: "{{ username }}"
+  tags: [immich-storage]
+
+- name: Mount Hetzner Storage Box via CIFS/SMB
+  mount:
+    path: "{{ storagebox_mount_point }}"
+    src: "{{ storagebox_url }}"
+    fstype: cifs
+    opts: "credentials=/etc/storagebox-credentials,uid={{ getent_passwd[username].1 }},gid={{ getent_passwd[username].2 }},file_mode=0660,dir_mode=0770,vers=3.0,cache=strict,actimeo=60"
+    state: mounted
+  tags: [immich-storage]
+
+- name: Create Immich directories on Storage Box
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0755"
+  loop:
+    - "{{ immich_library_dir }}"
+    - "{{ immich_encoded_video_dir }}"
+    - "{{ immich_backups_dir }}"
+    - "{{ immich_thumbs_dir }}"
+  tags: [immich-storage]
+
+- name: Template Immich docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ immich_base_dir }}/docker-compose.yml"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+  notify: Restart Immich
+  tags: [immich-config]
+
+- name: Template Immich .env file
+  template:
+    src: env.j2
+    dest: "{{ immich_base_dir }}/.env"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0600"
+  notify: Restart Immich
+  tags: [immich-config]
+
+- name: Check if Caddyfile exists as a directory (fix Docker volume issue)
+  stat:
+    path: "{{ immich_base_dir }}/Caddyfile"
+  register: caddyfile_stat
+  tags: [immich-config]
+
+- name: Remove Caddyfile directory if it exists
+  file:
+    path: "{{ immich_base_dir }}/Caddyfile"
+    state: absent
+  when: caddyfile_stat.stat.exists and caddyfile_stat.stat.isdir
+  tags: [immich-config]
+
+- name: Template Caddyfile
+  template:
+    src: Caddyfile.j2
+    dest: "{{ immich_base_dir }}/Caddyfile"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+  notify: Restart Immich
+  tags: [immich-config]
+
+- name: Configure UFW - Allow HTTP/HTTPS
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - 80
+    - 443
+  tags: [firewall]
+
+- name: Configure UFW - Remove Immich port rule (if exists)
+  ufw:
+    rule: allow
+    port: "{{ immich_port }}"
+    delete: yes
+  ignore_errors: yes
+  tags: [firewall]
+
+- name: Pull Immich Docker images
+  community.docker.docker_compose_v2:
+    project_src: "{{ immich_base_dir }}"
+    pull: always
+    state: present
+  become_user: "{{ username }}"
+  tags: [immich-deploy]
+
+- name: Start Immich services
+  community.docker.docker_compose_v2:
+    project_src: "{{ immich_base_dir }}"
+    state: present
+  become_user: "{{ username }}"
+  tags: [immich-deploy]
